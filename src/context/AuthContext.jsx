@@ -29,6 +29,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (username, password) => {
     try {
+      // Step 1: Authenticate with remote server to get auth token
       const response = await fetch('/api/user/generateToken', {
         method: 'POST',
         headers: {
@@ -45,12 +46,20 @@ export const AuthProvider = ({ children }) => {
       const result = await response.json();
       const authToken = result.authToken;
 
+      // Step 2: Store auth token locally
       setToken(authToken);
       setUser({ username });
-
-      // Store in session storage
       sessionStorage.setItem('authToken', authToken);
       sessionStorage.setItem('user', JSON.stringify({ username }));
+
+      // Step 3: Send auth token to local server for storage
+      await fetch('/api/camp/auth/store', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ authToken, username }),
+      });
 
       return { success: true };
     } catch (error) {
@@ -58,7 +67,20 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      // Clear auth token from local server
+      await fetch('/api/camp/auth/clear', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+    } catch (error) {
+      console.error('Failed to clear auth token from server:', error);
+    }
+    
+    // Clear local state
     setUser(null);
     setToken(null);
     sessionStorage.removeItem('authToken');
